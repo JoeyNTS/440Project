@@ -4,6 +4,10 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
+from math import inf
+from collections import Counter
+import itertools
+from time import time
 GameState = namedtuple('GameState', 'to_move, utility, board, moves')
 
 def alpha_beta_IDS(state, game, depth, eval_fn=None):
@@ -262,15 +266,233 @@ def human_human(game, state):
     else:
         print("It's a tie!")
 
+class UltimateTicTacToe:
+
+    TIME_LIMIT = 5
+
+#creating the box for players
+
+def index(x, y):
+    x -= 1
+    y -= 1
+    return ((x//3)*27) + ((x % 3)*3) + ((y//3)*9) + (y % 3)
+
+
+def box(x, y):
+    return index(x, y) // 9
+
+
+def next_box(i):
+    return i % 9
+
+
+def section_box(b):
+    return list(range(b*9, b*9 + 9))
+
+#this should help divide all the boxes nicely 
+def print_board(state):
+    for row in range(1, 10):
+        row_str = ["|"]
+        for col in range(1, 10):
+            row_str += [state[index(row, col)]]
+            if (col) % 3 == 0:
+                row_str += ["|"]
+        if (row-1) % 3 == 0:
+            print("-"*(len(row_str)*2-1))
+        print(" ".join(row_str))
+    print("-"*(len(row_str)*2-1))
+
+
+def add_piece(state, move, player):
+    if not isinstance(move, int):
+        move = index(move[0], move[1])
+    return state[: move] + player + state[move+1:]
+
+
+def update_box_won(state):
+    temp_box_win = ["."] * 9
+    for b in range(9):
+        idxs_box = section_box(b)
+        box_str = state[idxs_box[0]: idxs_box[-1]+1]
+        temp_box_win[b] = check_box(box_str)
+    return temp_box_win
+
+#this should be able to double check boxes during the game
+def check_box(box_str):
+    global possible_goals
+    for idxs in possible_goals:
+        (x, y, z) = idxs
+        if (box_str[x] == box_str[y] == box_str[z]) and box_str[x] != ".":
+            return box_str[x]
+    return "."
+
+
+def possible_moves(last_move):
+    global box_won
+    if not isinstance(last_move, int):
+        last_move = index(last_move[0], last_move[1])
+    box_to_play = next_box(last_move)
+    idxs = section_box(box_to_play)
+    if box_won[box_to_play] != ".":
+        pi_2d = [section_box(b) for b in range(9) if box_won[b] == "."]
+        possible_indices = list(itertools.chain.from_iterable(pi_2d))
+    else:
+        possible_indices = idxs
+    return possible_indices
+
+
+def successors(state, player, last_move):
+    succ = []
+    moves_idx = []
+    possible_indexes = possible_moves(last_move)
+    for idx in possible_indexes:
+        if state[idx] == ".":
+            moves_idx.append(idx)
+            succ.append(add_piece(state, idx, player))
+    return zip(succ, moves_idx)
+
+
+def print_successors(state, player, last_move):
+    for st in successors(state, player, last_move):
+        print_board(st[0])
+
+
+def opponent(p):
+    return "O" if p == "X" else "X"
+
+
+def evaluate_small_box(box_str, player):
+    global possible_goals
+    score = 0
+    three = Counter(player * 3)
+    two = Counter(player * 2 + ".")
+    one = Counter(player * 1 + "." * 2)
+    three_opponent = Counter(opponent(player) * 3)
+    two_opponent = Counter(opponent(player) * 2 + ".")
+    one_opponent = Counter(opponent(player) * 1 + "." * 2)
+
+    for idxs in possible_goals:
+        (x, y, z) = idxs
+        current = Counter([box_str[x], box_str[y], box_str[z]])
+
+        if current == three:
+            score += 100
+        elif current == two:
+            score += 10
+        elif current == one:
+            score += 1
+        elif current == three_opponent:
+            score -= 100
+            return score
+        elif current == two_opponent:
+            score -= 10
+        elif current == one_opponent:
+            score -= 1
+
+    return score
+
+
+def evaluate(state, last_move, player):
+    global box_won
+    score = 0
+    score += evaluate_small_box(box_won, player) * 200
+    for b in range(9):
+        idxs = section_box(b)
+        box_str = state[idxs[0]: idxs[-1]+1]
+        score += evaluate_small_box(box_str, player)
+    return score
+
+
+
+
+
+#this will make sure the input is valid as long as the spot is not taken and is still "."
+def valid_input(state, move):
+    global box_won
+    if not (0 < move[0] < 10 and 0 < move[1] < 10):
+        return False
+    if box_won[box(move[0], move[1])] != ".":
+        return False
+    if state[index(move[0], move[1])] != ".":
+        return False
+    return True
+
+#players are able to choose a row and column based on a 1-9 scale
+def take_input(state):    
+        print("Enter the row and column to place 'X' or 'O' (1-9):")
+        x = int(input("Row (1-9): "))
+        y = int(input("Column (1-9): "))
+        if not valid_input(state, (x,y)):
+            raise ValueError
+        return (x,y)
+
+
+
+#this controls the whole game
+def ult_game(state="." * 81):
+    global box_won, possible_goals
+    possible_goals = [(0, 4, 8), (2, 4, 6)]
+    possible_goals += [(i, i + 3, i + 6) for i in range(3)]
+    possible_goals += [(3 * i, 3 * i + 1, 3 * i + 2) for i in range(3)]
+    box_won = update_box_won(state)
+    print_board(state)
+
+    marker_choice = input("Enter 'X' or 'O' to start first: ").upper()
+    if marker_choice == "X":
+        print ("Player 1 is X")
+        print ("Player 2 is O")
+        x_turn = True
+    else:
+        print ("Player 1 is O")
+        print ("Player 2 is X")
+        x_turn = False  # Flag to check if it's 'X' turn
+
+    while True:
+        try:
+            user_move = take_input(state)
+            if x_turn:
+                piece = "X"
+            else:
+                piece = "O"
+
+            state = add_piece(state, user_move, piece)
+            print_board(state)
+            box_won = update_box_won(state)
+            game_won = check_box(box_won)
+
+            if game_won == "X":
+                print("Congratulations Player X Wins!")
+                break
+            elif game_won == "O":
+                print("Congratulations Player O Wins!")
+                break
+            elif "." not in state:
+                print("It's a Tie!")
+                break
+
+            # Switch between X and O
+            x_turn = not x_turn
+
+            if x_turn == True:
+                print("It is X's turn")
+            else:
+                print ("It is O's turn")
+
+        except ValueError:
+            print("Invalid input! Please Try again.")
+            print_board(state)
+            continue
+
+    return state
+
 if __name__ == "__main__":
- 
     game = TicTacToe()
     state = game.initial
 
     print("\nLet's play TicTacToe!\n")
     game.display(state)
 
-game_type = input("Please enter 'a' to play against another player, 'b' to play against alpha beta algorithm, or 'c' to watch the algorithm play against itself.\n" )
+game_type = input("Please enter 'a' to play against another player, 'b' to play against alpha beta algorithm, or 'c' to watch the algorithm play against itself or 'd' to play ULTIMATE TIC TAC TOE.\n" )
 
 if game_type=="a":
     human_human(game,state)
@@ -288,8 +510,12 @@ elif game_type=="c":
         plt.ylabel('Count')
         plt.title('Computer vs. Computer Results')
         plt.show()
-        
     else:
         print("Invalid input")
         sys.exit(0)
     print("Thanks for playing!\n")
+elif game_type =='d':
+    print("Welcome to Ultimate Tic Tac Toe!\n")
+    INITIAL_STATE = "." * 81
+    final_state = ult_game(INITIAL_STATE)
+    ult_tic_tac = UltimateTicTacToe()   #calls to the ultimate game in the class
