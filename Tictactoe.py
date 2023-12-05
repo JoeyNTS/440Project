@@ -286,8 +286,8 @@ def next_box(i):
     return i % 9
 
 
-def section_box(b):
-    return list(range(b*9, b*9 + 9))
+def section_box(box):
+    return list(range(box*9, box*9 + 9))
 
 #this should help divide all the boxes nicely 
 def print_board(state):
@@ -310,12 +310,13 @@ def add_piece(state, move, player):
 
 
 def update_box_won(state):
-    temp_box_win = ["."] * 9
+    winning_box = ["."] * 9
     for b in range(9):
         idxs_box = section_box(b)
         box_str = state[idxs_box[0]: idxs_box[-1]+1]
-        temp_box_win[b] = check_box(box_str)
-    return temp_box_win
+        winning_box[b] = check_box(box_str)
+    return winning_box
+
 
 #this should be able to double check boxes during the game
 def check_box(box_str):
@@ -361,7 +362,7 @@ def opponent(p):
     return "O" if p == "X" else "X"
 
 
-def evaluate_small_box(box_str, player):
+def smaller_box(box_str, player):
     global possible_goals
     score = 0
     three = Counter(player * 3)
@@ -392,14 +393,14 @@ def evaluate_small_box(box_str, player):
     return score
 
 
-def evaluate(state, last_move, player):
+def evaluate(state, player):
     global box_won
     score = 0
-    score += evaluate_small_box(box_won, player) * 200
+    score += smaller_box(box_won, player) * 200
     for b in range(9):
         idxs = section_box(b)
         box_str = state[idxs[0]: idxs[-1]+1]
-        score += evaluate_small_box(box_str, player)
+        score += smaller_box(box_str, player)
     return score
 
 
@@ -409,12 +410,17 @@ def evaluate(state, last_move, player):
 #this will make sure the input is valid as long as the spot is not taken and is still "."
 def valid_input(state, move):
     global box_won
-    if not (0 < move[0] < 10 and 0 < move[1] < 10):
+    if not (0 < move[0] < 10 and 0 < move[1] < 10): #this lets the user to only enter anything between 1-9 for row and column. If value outside 1-9 then it won't work
         return False
-    if box_won[box(move[0], move[1])] != ".":
+    if box_won[box(move[0], move[1])] != ".":  #this is where the box will not allow users to enter anymore if the box is either won by X or O
         return False
     if state[index(move[0], move[1])] != ".":
         return False
+    
+    for i in range(9):
+        box_start = i *9
+        box_end = box_start + 9
+         
     return True
 
 #players are able to choose a row and column based on a 1-9 scale
